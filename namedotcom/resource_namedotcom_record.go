@@ -3,6 +3,7 @@ package namedotcom
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cockroachdb/errors"
 
@@ -101,6 +102,7 @@ func resourceRecordImporterParseID(id string) (domain, recordID string, err erro
 
 // resourceRecordRead reads a record from the Name.com API.
 func resourceRecordRead(data *schema.ResourceData, meta interface{}) error {
+	time.Sleep(75 * time.Millisecond)
 	client, ok := meta.(*namecom.NameCom)
 	if !ok {
 		return errors.New("Error converting meta to Name.com client")
