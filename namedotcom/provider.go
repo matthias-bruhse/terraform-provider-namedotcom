@@ -5,6 +5,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/namedotcom/go/v4/namecom"
+
+	"context"
+	"golang.org/x/time/rate"
+	"sync"
 )
 
 func Provider() *schema.Provider {
@@ -57,7 +61,32 @@ func providerConfigure(data *schema.ResourceData) (interface{}, error) {
 	}
 
 	// Create a new Name.com client
-	nc := namecom.New(username, token)
+	nc := NewRateLimitedClient(username, token)
 
 	return nc, nil
+}
+
+type RateLimitedClient struct {
+	client  *namecom.NameCom
+	limiter *rate.Limiter
+	mutex   sync.Mutex
+}
+
+func NewRateLimitedClient(username, apiToken string) *RateLimitedClient {
+	return &RateLimitedClient{
+		client:  namecom.New(username, apiToken), // Use the existing NameCom client
+		limiter: rate.NewLimiter(20, 20),         // Allow 20 requests per second
+	}
+}
+
+func (r *RateLimitedClient) GetRecord(request *namecom.GetRecordRequest) (*namecom.Record, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	err := r.limiter.Wait(context.Background()) // Rate limit enforcement
+	if err != nil {
+		return nil, err
+	}
+
+	return r.client.GetRecord(request) // Call the original API method
 }
